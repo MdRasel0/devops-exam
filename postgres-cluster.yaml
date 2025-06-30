@@ -1,0 +1,25 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg-release
+  namespace: default
+spec:
+  instances: 1
+
+  storage:
+    storageClass: standard
+    size: 1Gi
+
+  bootstrap:
+    initdb:
+      database: myappdb
+      owner: postgres
+      secret:
+        name: pg-password
+
+  superuserSecret:
+    name: pg-password
+
+  monitoring:
+    enablePodMonitor: true
+

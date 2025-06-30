@@ -1,0 +1,98 @@
+# app-deployment.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-service-account
+  annotations:
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "app"
+    vault.hashicorp.com/agent-inject-secret-postgres: "secret/data/postgres"
+    vault.hashicorp.com/agent-inject-template-postgres: |
+      {{- with secret "secret/data/postgres" -}}
+      export DB_USERNAME="{{ .Data.data.username }}"
+      export DB_PASSWORD="{{ .Data.data.password }}"
+      {{- end -}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+    spec:
+      serviceAccountName: app-service-account
+      tolerations:
+      - key: "app-tier"
+        operator: "Equal"
+        value: "frontend"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - demo-app
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - name: demo-app
+        image: rasel009/devops-exam-app:v1
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        env:
+        - name: DB_HOST
+          value: "postgres-cluster-rw"
+        - name: DB_DATABASE
+          value: "appdb"
+        volumeMounts:
+        - name: app-storage
+          mountPath: /app/data
+        - name: vault-secrets
+          mountPath: /vault/secrets
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: app-storage
+        persistentVolumeClaim:
+          claimName: app-pvc
+      - name: vault-secrets
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app-service
+spec:
+  selector:
+    app: demo-app
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: ClusterIP

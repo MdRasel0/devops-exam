@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-app
+  labels:
+    app: node-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: node-app
+  template:
+    metadata:
+      labels:
+        app: node-app
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "node-app-role"
+        vault.hashicorp.com/agent-inject-secret-config: "secret/data/node-app"
+    spec:
+      containers:
+      - name: node-container
+        image: rasel009/devops-exam-app:v1
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+        - name: app-volume
+          mountPath: /app/data
+      volumes:
+      - name: app-volume
+        persistentVolumeClaim:
+          claimName: demo-pvc
+      tolerations:
+      - key: "node-type"
+        operator: "Equal"
+        value: "worker"
+        effect: "NoSchedule"

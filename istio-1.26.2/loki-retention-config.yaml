@@ -1,0 +1,13 @@
+# loki-retention-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-retention-config
+data:
+  loki.yaml: |
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 48h
+    limits_config:
+      retention_period: 48h
+      enforce_retention: true
